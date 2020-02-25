@@ -8,6 +8,8 @@ namespace OpenApi;
 
 use Closure;
 use Exception;
+use OpenApi\Processors\AddVersionPrefix;
+use OpenApi\Processors\MergeParametersAndResponses;
 use SplObjectStorage;
 use stdClass;
 use OpenApi\Annotations\AbstractAnnotation;
@@ -65,6 +67,8 @@ class Analysis
      */
     private static $processors;
 
+    public static $requiredVersion = 1;
+
     /**
      * @param array $annotations
      * @param null  $context
@@ -90,6 +94,10 @@ class Analysis
             return;
         }
         if ($annotation instanceof AbstractAnnotation) {
+            if ($annotation->apiVersion > self::$requiredVersion) {
+                $annotation->skip();
+                return;
+            }
             $context = $annotation->_context;
             if ($this->openapi === null && $annotation instanceof OpenApi) {
                 $this->openapi = $annotation;
@@ -372,6 +380,7 @@ class Analysis
             self::$processors = [
                 new MergeIntoOpenApi(),
                 new MergeIntoComponents(),
+                new AddVersionPrefix(),
                 new ImportTraits(),
                 new AugmentSchemas(),
                 new AugmentProperties(),
@@ -382,6 +391,7 @@ class Analysis
                 new AugmentOperations(),
                 new AugmentParameters(),
                 new MergeJsonContent(),
+                new MergeParametersAndResponses(),
                 new MergeXmlContent(),
                 new OperationId(),
                 new CleanUnmerged(),
@@ -424,5 +434,18 @@ class Analysis
         Logger::notice('No openapi target set. Run the MergeIntoOpenApi processor before validate()');
 
         return false;
+    }
+
+    public static function mustExludeMethod($toExludeVersion, $toLeaveVersion)
+    {
+        if ($toExludeVersion == $toLeaveVersion) {
+            throw new Exception("Versions for exclude checking must not be the same");
+        }
+
+        if ($toExludeVersion > $toLeaveVersion) {
+            return self::$requiredVersion < $toExludeVersion;
+        } else {
+            return self::$requiredVersion >= $toExludeVersion;
+        }
     }
 }

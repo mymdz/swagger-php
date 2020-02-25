@@ -4,8 +4,9 @@
  * @license Apache 2.0
  */
 
- namespace OpenApi\Annotations;
+namespace OpenApi\Annotations;
 
+use OpenApi\Analysis;
 use OpenApi\Logger;
 
 /**
@@ -163,6 +164,57 @@ abstract class Operation extends AbstractAnnotation
         Server::class => ['servers'],
         RequestBody::class => 'requestBody',
     ];
+
+    public function filterParametersAndResponses()
+    {
+        $foundResponsesVersions = [];
+        if ($this->responses !== UNDEFINED && is_array($this->responses)) {
+            foreach ($this->responses as $k => $response) {
+                if ($response->apiVersion > Analysis::$requiredVersion) {
+                    unset($this->responses[$k]);
+                }
+                if (!isset($foundResponsesVersions[$response->response])) {
+                    $foundResponsesVersions[$response->response] = [$response->apiVersion, $k];
+                    continue;
+                }
+
+                if ($foundResponsesVersions[$response->response][0] != $response->apiVersion) {
+                    if (Analysis::mustExludeMethod($foundResponsesVersions[$response->response][0], $response->apiVersion)) {
+                        $this->responses[$foundResponsesVersions[$response->response][1]]->skip();
+                        unset($this->responses[$foundResponsesVersions[$response->response][1]]);
+                        $foundResponsesVersions[$response->response] = [$response->apiVersion, $k];
+                    } else {
+                        $response->skip();
+                    }
+                }
+            }
+        }
+
+        $foundParametersVersions = [];
+        if ($this->parameters !== UNDEFINED && is_array($this->parameters)) {
+            foreach ($this->parameters as $k => $parameter) {
+                if ($parameter->apiVersion > Analysis::$requiredVersion) {
+                    unset($this->parameters[$k]);
+                }
+
+                $keyName = "{$parameter->in}__{$parameter->name}";
+                if (!isset($foundParametersVersions[$keyName])) {
+                    $foundParametersVersions[$keyName] = [$parameter->apiVersion, $k];
+                    continue;
+                }
+
+                if ($foundParametersVersions[$keyName][0] != $parameter->apiVersion) {
+                    if (Analysis::mustExludeMethod($foundParametersVersions[$keyName][0], $parameter->apiVersion)) {
+                        $this->parameters[$foundParametersVersions[$keyName][1]]->skip();
+                        unset($this->parameters[$foundParametersVersions[$keyName][1]]);
+                        $foundParametersVersions[$keyName] = [$parameter->apiVersion, $k];
+                    } else {
+                        $parameter->skip();
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * @inheritdoc

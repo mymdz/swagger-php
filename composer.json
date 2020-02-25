@@ -1,5 +1,5 @@
 {
-  "name": "zircote/swagger-php",
+  "name": "mymdz/swagger-php",
   "type": "library",
   "license": "Apache-2.0",
   "bin": [
@@ -12,7 +12,7 @@
     "api",
     "service discovery"
   ],
-  "homepage": "https://github.com/zircote/swagger-php/",
+  "homepage": "https://github.com/mymdz/swagger-php/",
   "authors": [
     {
       "name": "Robert Allen",
@@ -23,6 +23,11 @@
       "name": "Bob Fanger",
       "email": "bfanger@gmail.com",
       "homepage": "http://bfanger.nl"
+    },
+    {
+      "name": "Denis Zadorozhny",
+      "email": "dz@autodoc.de",
+      "homepage": "https://autodoc.de"
     }
   ],
   "config": {

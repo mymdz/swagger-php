@@ -57,6 +57,8 @@ class Info extends AbstractAnnotation
      */
     public $version = UNDEFINED;
 
+    public $versionPrefix = UNDEFINED;
+
     /**
      * @inheritdoc
      */

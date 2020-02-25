@@ -8,6 +8,7 @@ namespace OpenApi\Annotations;
 
 use Exception;
 use JsonSerializable;
+use OpenApi\Analysis;
 use stdClass;
 use OpenApi\Analyser;
 use OpenApi\Context;
@@ -28,6 +29,8 @@ abstract class AbstractAnnotation implements JsonSerializable
      */
     public $x = UNDEFINED;
 
+    public $apiVersion = 1;
+
     /**
      * @var Context
      */
@@ -39,6 +42,8 @@ abstract class AbstractAnnotation implements JsonSerializable
      * @var array
      */
     public $_unmerged = [];
+
+    public $_skipped = false;
 
     /**
      * The properties which are required by [the spec](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.0.md)
@@ -83,7 +88,7 @@ abstract class AbstractAnnotation implements JsonSerializable
      *
      * @var array
      */
-    public static $_blacklist = ['_context', '_unmerged'];
+    public static $_blacklist = ['_context', '_unmerged', '_skipped'];
 
     /**
      * @param array $properties
@@ -149,6 +154,23 @@ abstract class AbstractAnnotation implements JsonSerializable
         $this->$property = $value;
     }
 
+    public function skip()
+    {
+        $this->_skipped = true;
+        $this->skipArray($this);
+    }
+
+    private function skipArray(&$array)
+    {
+        foreach ($array as &$item) {
+            if (is_array($item)) {
+                $this->skipArray($item);
+            } elseif ($item instanceof AbstractAnnotation) {
+                $item->skip();
+            }
+        }
+    }
+
     /**
      * Merge given annotations to their mapped properties configured in static::$_nested.
      * Annotations that couldn't be merged are added to the _unmerged array.
@@ -162,18 +184,43 @@ abstract class AbstractAnnotation implements JsonSerializable
         $unmerged = [];
         $nestedContext = new Context(['nested' => $this], $this->_context);
         foreach ($annotations as $annotation) {
+            if ($annotation->apiVersion > Analysis::$requiredVersion) {
+                $annotation->skip();
+                continue;
+            }
             $found = false;
             foreach (static::$_nested as $class => $property) {
-                if (get_class($annotation) === $class) {
+                if ($annotation instanceof $class) {
                     if (is_array($property)) { // Append to an array?
+                        $key = $property[1] ?? null;
                         $property = $property[0];
                         if ($this->$property === UNDEFINED) {
                             $this->$property = [];
+                        } else {
+                            foreach ($this->$property as $skippedKey => $existing) {
+                                if ($key && $existing->$key == $annotation->$key && $existing->apiVersion != $annotation->apiVersion) {
+                                    if (Analysis::mustExludeMethod($existing->apiVersion, $annotation->apiVersion)) {
+                                        $existing->skip();
+                                        unset($this->$property[$skippedKey]);
+                                    } else {
+                                        $annotation->skip();
+                                        break 2;
+                                    }
+                                }
+                            }
                         }
                         array_push($this->$property, $this->nested($annotation, $nestedContext));
                         $found = true;
                     } elseif ($this->$property === UNDEFINED) {
                         $this->$property = $this->nested($annotation, $nestedContext);
+                        $found = true;
+                    } elseif ($this->$property->apiVersion != $annotation->apiVersion) {
+                        if (Analysis::mustExludeMethod($this->$property->apiVersion, $annotation->apiVersion)) {
+                            $this->$property->skip();
+                            $this->$property = $this->nested($annotation, $nestedContext);
+                        } else {
+                            $annotation->skip();
+                        }
                         $found = true;
                     }
                     break;
@@ -352,6 +399,11 @@ abstract class AbstractAnnotation implements JsonSerializable
                 Logger::notice('Unexpected type: "' . gettype($annotation) . '" in ' . $this->identity() . '->_unmerged, expecting a Annotation object');
                 break;
             }
+
+            if ($annotation->_skipped) {
+                continue;
+            }
+
             $class = get_class($annotation);
             if (isset(static::$_nested[$class])) {
                 $property = static::$_nested[$class];
