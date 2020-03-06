@@ -25,6 +25,8 @@ class JsonContent extends Schema
      */
     public $examples = UNDEFINED;
 
+    public $versionedExamples = UNDEFINED;
+
     /**
      * @inheritdoc
      */
@@ -39,6 +41,7 @@ class JsonContent extends Schema
         Property::class => ['properties', 'property'],
         ExternalDocumentation::class => 'externalDocs',
         Xml::class => 'xml',
-        AdditionalProperties::class => 'additionalProperties'
+        AdditionalProperties::class => 'additionalProperties',
+        VersionedExample::class => ['versionedExamples'],
     ];
 }

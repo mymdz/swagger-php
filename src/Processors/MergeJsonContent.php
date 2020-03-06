@@ -22,6 +22,19 @@ class MergeJsonContent
     {
         $annotations = $analysis->getAnnotationsOfType(JsonContent::class);
         foreach ($annotations as $jsonContent) {
+            if ($jsonContent->versionedExamples !== UNDEFINED && !empty($jsonContent->versionedExamples)) {
+                $actualExample = null;
+                foreach ($jsonContent->versionedExamples as $example) {
+                    $example->skip();
+                    if (!$actualExample || Analysis::mustExludeMethod($actualExample->apiVersion, $example->apiVersion)) {
+                        $actualExample = $example;
+                    }
+                }
+
+                $jsonContent->example = $actualExample->example;
+                $jsonContent->versionedExamples = UNDEFINED;
+            }
+
             $response = $jsonContent->_context->nested;
             if (!($response instanceof Response) && !($response instanceof RequestBody)) {
                 continue;
