@@ -213,6 +213,8 @@ abstract class Operation extends AbstractAnnotation
                     }
                 }
             }
+
+            $this->parameters = array_values($this->parameters);
         }
     }
 
